@@ -18,30 +18,24 @@
 
 #pragma once
 
-#include "ContentCache.h"
-#include "TextAtlas.h"
+#include <list>
+
+#include "core/Typeface.h"
 
 namespace pag {
-class TextContentCache : public ContentCache {
+class CGTypefaceCache {
  public:
-  explicit TextContentCache(TextLayer* layer);
-  TextContentCache(TextLayer* layer, ID cacheID, Property<TextDocumentHandle>* sourceText);
+  static void Add(std::shared_ptr<Typeface> typeface);
 
-  ~TextContentCache() override;
-
- protected:
-  void excludeVaryingRanges(std::vector<TimeRange>* timeRanges) const override;
-  ID getCacheID() const override;
-  GraphicContent* createContent(Frame layerFrame) const override;
+  static std::shared_ptr<Typeface> FindByPredicate(const std::function<bool(Typeface*)>& predicate);
 
  private:
-  void initAtlas();
+  void add(std::shared_ptr<Typeface> typeface);
 
-  ID cacheID = 0;
-  Property<TextDocumentHandle>* sourceText;
-  TextPathOptions* pathOption;
-  TextMoreOptions* moreOption;
-  std::vector<TextAnimator*>* animators;
-  TextAtlas* atlas = nullptr;
+  std::shared_ptr<Typeface> findByPredicate(const std::function<bool(Typeface*)>& predicate);
+
+  void purge();
+
+  std::list<std::shared_ptr<Typeface>> typefaces;
 };
 }  // namespace pag

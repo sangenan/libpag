@@ -49,28 +49,6 @@ struct TextLayout {
   Matrix coordinateMatrix = Matrix::I();
 };
 
-TextPaint CreateTextPaint(const TextDocument* textDocument) {
-  TextPaint textPaint = {};
-  if (textDocument->applyFill && textDocument->applyStroke) {
-    textPaint.style = TextStyle::StrokeAndFill;
-  } else if (textDocument->applyStroke) {
-    textPaint.style = TextStyle::Stroke;
-  } else {
-    textPaint.style = TextStyle::Fill;
-  }
-  textPaint.fillColor = textDocument->fillColor;
-  textPaint.strokeColor = textDocument->strokeColor;
-  textPaint.strokeWidth = textDocument->strokeWidth;
-  textPaint.strokeOverFill = textDocument->strokeOverFill;
-  textPaint.fontFamily = textDocument->fontFamily;
-  textPaint.fontStyle = textDocument->fontStyle;
-  textPaint.fontSize = textDocument->fontSize;
-  textPaint.fauxBold = textDocument->fauxBold;
-  textPaint.fauxItalic = textDocument->fauxItalic;
-  textPaint.isVertical = textDocument->direction == TextDirection::Vertical;
-  return textPaint;
-}
-
 std::vector<GlyphInfo> CreateGlyphInfos(const std::vector<GlyphHandle>& glyphList) {
   std::vector<GlyphInfo> glyphInfos = {};
   int index = 0;
@@ -474,10 +452,10 @@ std::shared_ptr<Graphic> RenderTextBackground(const std::vector<std::vector<Glyp
 
 std::unique_ptr<TextContent> RenderTexts(Property<TextDocumentHandle>* sourceText, TextPathOptions*,
                                          TextMoreOptions*, std::vector<TextAnimator*>* animators,
-                                         Frame layerFrame) {
+                                         Frame layerFrame, TextAtlas* atlas) {
   auto textDocument = sourceText->getValueAt(layerFrame);
-  auto textPaint = CreateTextPaint(textDocument.get());
-  auto glyphList = Glyph::BuildFromText(textDocument->text, textPaint);
+  auto glyphDocument = atlas->getGlyphDocument(textDocument.get());
+  auto glyphList = Glyph::BuildFromText(glyphDocument.get());
   // 无论文字朝向，都先按从(0,0)点开始的横向矩形排版。
   // 提取出跟文字朝向无关的 GlyphInfo 列表与 TextLayout,
   // 复用同一套排版规则。如果最终是纵向排版，再把坐标转成纵向坐标应用到 glyphList 上。
@@ -514,17 +492,21 @@ std::unique_ptr<TextContent> RenderTexts(Property<TextDocumentHandle>* sourceTex
 
   auto normalText = Text::MakeFrom(simpleGlyphs, hasAnimators ? nullptr : &textBounds);
   if (normalText) {
+    std::static_pointer_cast<Text>(normalText)->atlas = atlas;
     contents.push_back(normalText);
   }
   auto graphic = Graphic::MakeCompose(contents);
   auto colorText = Text::MakeFrom(colorGlyphs);
-  return std::unique_ptr<TextContent>(new TextContent(std::move(graphic), std::move(colorText)));
+  if (colorText) {
+    std::static_pointer_cast<Text>(colorText)->atlas = atlas;
+  }
+  return std::make_unique<TextContent>(std::move(graphic), std::move(colorText));
 }
 
-void CalculateTextAscentAndDescent(TextDocumentHandle textDocument, float* pMinAscent,
+void CalculateTextAscentAndDescent(const TextDocumentHandle& textDocument, float* pMinAscent,
                                    float* pMaxDescent) {
-  auto textPaint = CreateTextPaint(textDocument.get());
-  auto glyphList = Glyph::BuildFromText(textDocument->text, textPaint);
+  auto glyphDocument = CreateGlyphDocument(textDocument.get());
+  auto glyphList = Glyph::BuildFromText(glyphDocument.get());
 
   float minAscent = 0;
   float maxDescent = 0;
@@ -536,5 +518,4 @@ void CalculateTextAscentAndDescent(TextDocumentHandle textDocument, float* pMinA
   *pMinAscent = minAscent;
   *pMaxDescent = maxDescent;
 }
-
 }  // namespace pag

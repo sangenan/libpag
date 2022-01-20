@@ -210,6 +210,10 @@ void RenderCache::releaseAll() {
   deviceID = 0;
 }
 
+float RenderCache::getAssetMaxScale(ID assetID) {
+  return stage->getAssetMaxScale(assetID);
+}
+
 void RenderCache::detachFromContext() {
   if (hitTestOnly) {
     context = nullptr;

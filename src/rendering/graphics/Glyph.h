@@ -21,6 +21,7 @@
 #include "core/Font.h"
 #include "core/utils/BytesKey.h"
 #include "pag/types.h"
+#include "SimpleGlyph.h"
 
 namespace pag {
 
@@ -50,34 +51,32 @@ class Glyph;
 
 typedef std::shared_ptr<Glyph> GlyphHandle;
 
+struct GlyphDocument {
+  std::vector<std::shared_ptr<SimpleGlyph>> glyphs;
+  TextPaint paint;
+};
+
 /**
  * Glyph represents a single character for drawing.
  */
 class Glyph {
  public:
-  static std::vector<GlyphHandle> BuildFromText(const std::string& text,
-                                                const TextPaint& textPaint);
+  static std::vector<GlyphHandle> BuildFromText(const GlyphDocument* glyphDocument);
 
   virtual ~Glyph() = default;
-
-  /**
-   * Called by the Text::MakeFrom() method to merge the draw calls of glyphs with the same style.
-   * Return false if this glyph is not visible.
-   */
-  void computeStyleKey(BytesKey* styleKey) const;
 
   /**
    * Returns the Font object associated with this Glyph.
    */
   Font getFont() const {
-    return textFont;
+    return simpleGlyph->getFont();
   }
 
   /**
    * Returns the id of this glyph in associated typeface.
    */
   GlyphID getGlyphID() const {
-    return glyphId;
+    return simpleGlyph->getGlyphID();
   }
 
   /**
@@ -96,7 +95,7 @@ class Glyph {
    * Returns name of this glyph in utf8.
    */
   std::string getName() const {
-    return name;
+    return simpleGlyph->getName();
   }
 
   /**
@@ -224,15 +223,19 @@ class Glyph {
    */
   Matrix getTotalMatrix() const;
 
+  Matrix getExtraMatrix() const {
+    return extraMatrix;
+  }
+
+  void computeAtlasKey(BytesKey* bytesKey) const;
+
  private:
-  GlyphID glyphId = 0;
-  Font textFont = {};
+  std::shared_ptr<SimpleGlyph> simpleGlyph;
   // read only attributes:
   float advance = 0;
   float ascent = 0;
   float descent = 0;
   Rect bounds = Rect::MakeEmpty();
-  std::string name;
   bool _isVertical = false;
   bool strokeOverFill = true;
   Matrix extraMatrix = Matrix::I();  // for vertical text or fauxItalic.
@@ -244,7 +247,6 @@ class Glyph {
   Color strokeColor = Black;
   float strokeWidth = 0;
 
-  Glyph(GlyphID glyphId, const std::string& name, const Font& textFont, const TextPaint& textPaint);
+  Glyph(const std::shared_ptr<SimpleGlyph>& simpleGlyph, const TextPaint& textPaint);
 };
-
 }  // namespace pag

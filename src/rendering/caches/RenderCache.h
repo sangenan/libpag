@@ -136,6 +136,8 @@ class RenderCache : public Performance {
 
   void releaseAll();
 
+  float getAssetMaxScale(ID assetID);
+
  private:
   ID _uniqueID = 0;
   PAGStage* stage = nullptr;

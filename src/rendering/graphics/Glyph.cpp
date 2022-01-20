@@ -21,55 +21,31 @@
 #include "rendering/FontManager.h"
 
 namespace pag {
-std::vector<GlyphHandle> Glyph::BuildFromText(const std::string& text, const TextPaint& textPaint) {
-  Font textFont = {};
-  textFont.setFauxBold(textPaint.fauxBold);
-  textFont.setFauxItalic(textPaint.fauxItalic);
-  textFont.setSize(textPaint.fontSize);
-  auto typeface =
-      FontManager::GetTypefaceWithoutFallback(textPaint.fontFamily, textPaint.fontStyle);
-  bool hasTypeface = typeface != nullptr;
+std::vector<GlyphHandle> Glyph::BuildFromText(const GlyphDocument* glyphDocument) {
   std::vector<GlyphHandle> glyphList;
-  const char* textStart = &(text[0]);
-  const char* textStop = textStart + text.size();
-  while (textStart < textStop) {
-    auto oldPosition = textStart;
-    UTF8Text::NextChar(&textStart);
-    auto length = textStart - oldPosition;
-    auto name = std::string(oldPosition, length);
-    GlyphID glyphId = 0;
-    if (hasTypeface) {
-      glyphId = typeface->getGlyphID(name);
-      if (glyphId != 0) {
-        textFont.setTypeface(typeface);
-      }
-    }
-    if (glyphId == 0) {
-      auto fallbackTypeface = FontManager::GetFallbackTypeface(name, &glyphId);
-      textFont.setTypeface(fallbackTypeface);
-    }
-    auto glyph = std::shared_ptr<Glyph>(new Glyph(glyphId, name, textFont, textPaint));
-    glyphList.push_back(glyph);
+  for (const auto& glyph : glyphDocument->glyphs) {
+    glyphList.emplace_back(std::shared_ptr<Glyph>(new Glyph(glyph, glyphDocument->paint)));
   }
   return glyphList;
 }
 
-Glyph::Glyph(GlyphID glyphId, const std::string& charName, const Font& textFont,
-             const TextPaint& textPaint)
-    : glyphId(glyphId), textFont(textFont) {
-  name = charName;
+Glyph::Glyph(const std::shared_ptr<SimpleGlyph>& simpleGlyph, const TextPaint& textPaint)
+    : simpleGlyph(simpleGlyph) {
   _isVertical = textPaint.isVertical;
   textStyle = textPaint.style;
   strokeOverFill = textPaint.strokeOverFill;
   fillColor = textPaint.fillColor;
   strokeColor = textPaint.strokeColor;
   strokeWidth = textPaint.strokeWidth;
+  auto textFont = simpleGlyph->getFont();
   auto metrics = textFont.getMetrics();
   ascent = metrics.ascent;
   descent = metrics.descent;
+  auto glyphId = simpleGlyph->getGlyphID();
   advance = textFont.getGlyphAdvance(glyphId);
-  bounds = textFont.getGlyphBounds(glyphId);
-  if (charName == " ") {
+  bounds = simpleGlyph->getBounds();
+  auto name = simpleGlyph->getName();
+  if (name == " ") {
     // 空格字符测量的 bounds 比较异常偏上，本身也不可见，这里直接按字幕 A 的上下边界调整一下。
     auto AGlyphID = textFont.getGlyphID("A");
     if (AGlyphID > 0) {
@@ -99,22 +75,6 @@ Glyph::Glyph(GlyphID glyphId, const std::string& charName, const Font& textFont,
   }
 }
 
-void Glyph::computeStyleKey(BytesKey* styleKey) const {
-  auto m = getTotalMatrix();
-  styleKey->write(m.getScaleX());
-  styleKey->write(m.getSkewX());
-  styleKey->write(m.getSkewY());
-  styleKey->write(m.getScaleY());
-  uint8_t fillValues[] = {fillColor.red, fillColor.green, fillColor.blue,
-                          static_cast<uint8_t>(alpha * 255)};
-  styleKey->write(fillValues);
-  uint8_t strokeValues[] = {strokeColor.red, strokeColor.green, strokeColor.blue,
-                            static_cast<uint8_t>(textStyle)};
-  styleKey->write(strokeValues);
-  styleKey->write(strokeWidth);
-  styleKey->write(textFont.getTypeface()->uniqueID());
-}
-
 bool Glyph::isVisible() const {
   return matrix.invertible() && alpha != 0.0f && !bounds.isEmpty();
 }
@@ -125,4 +85,7 @@ Matrix Glyph::getTotalMatrix() const {
   return m;
 }
 
+void Glyph::computeAtlasKey(BytesKey* bytesKey) const {
+  simpleGlyph->computeAtlasKey(bytesKey);
+}
 }  // namespace pag

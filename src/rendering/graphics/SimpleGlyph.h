@@ -18,30 +18,38 @@
 
 #pragma once
 
-#include "ContentCache.h"
-#include "TextAtlas.h"
+#include "pag/types.h"
+#include "core/Font.h"
 
 namespace pag {
-class TextContentCache : public ContentCache {
+class SimpleGlyph {
  public:
-  explicit TextContentCache(TextLayer* layer);
-  TextContentCache(TextLayer* layer, ID cacheID, Property<TextDocumentHandle>* sourceText);
+  SimpleGlyph(GlyphID glyphId, std::string name, Font font)
+      : _glyphId(glyphId), _name(std::move(name)), _font(std::move(font)) {
+  }
 
-  ~TextContentCache() override;
+  GlyphID getGlyphID() const {
+    return _glyphId;
+  }
 
- protected:
-  void excludeVaryingRanges(std::vector<TimeRange>* timeRanges) const override;
-  ID getCacheID() const override;
-  GraphicContent* createContent(Frame layerFrame) const override;
+  std::string getName() const {
+    return _name;
+  }
+
+  Font getFont() const {
+    return _font;
+  }
+
+  Rect getBounds();
+
+  void computeAtlasKey(BytesKey* bytesKey) const;
 
  private:
-  void initAtlas();
-
-  ID cacheID = 0;
-  Property<TextDocumentHandle>* sourceText;
-  TextPathOptions* pathOption;
-  TextMoreOptions* moreOption;
-  std::vector<TextAnimator*>* animators;
-  TextAtlas* atlas = nullptr;
+  GlyphID _glyphId;
+  std::string _name;
+  Font _font;
+  Rect _bounds = Rect::MakeEmpty();
 };
+
+std::vector<std::shared_ptr<SimpleGlyph>> GetSimpleGlyphs(const TextDocument* textDocument);
 }  // namespace pag
